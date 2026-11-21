@@ -17,7 +17,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("org.purpurmc.purpur:purpur-api:1.21.11-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     compileOnly("net.luckperms:api:5.4")
 }
 
