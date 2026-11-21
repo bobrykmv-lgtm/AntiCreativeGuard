@@ -1,0 +1,11 @@
+name: AntiCreativeGuard
+version: 1.0.0
+main: cloud.enderman.chaossmp.anticreative.AntiCreativePlugin
+api-version: "1.21"
+depend: [LuckPerms]
+author: ChaosSMP
+description: Запрет смены игрового режима для групп без доступа
+commands:
+  anticreative:
+    description: Перезагрузка конфигурации AntiCreativeGuard
+    permission: anticreative.admin
