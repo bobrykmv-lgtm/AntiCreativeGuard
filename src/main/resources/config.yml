@@ -1,0 +1,12 @@
+# Список групп LuckPerms, которым разрешено менять игровой режим (и через команды, и через F3+F4)
+allowed-groups:
+  - deputy
+  - owner
+  - gl.admin
+  - king
+
+# Сообщения для игроков (поддерживаются цветовые коды &)
+messages:
+  no-permission: "&c[ChaosSMP] &fУ вашей группы нет доступа к смене игрового режима!"
+  reloaded: "&a[ChaosSMP] &fКонфигурация AntiCreativeGuard успешно перезагружена."
+  only-admin: "&c[ChaosSMP] &fНедостаточно прав для выполнения этой команды."
