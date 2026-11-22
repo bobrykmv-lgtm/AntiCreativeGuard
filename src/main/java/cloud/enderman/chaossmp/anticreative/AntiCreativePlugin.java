@@ -14,7 +14,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.player.PlayerCommandSendEvent;
 import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -29,6 +31,13 @@ public final class AntiCreativePlugin extends JavaPlugin implements Listener, Co
 
     private LuckPerms luckPerms;
     private Set<String> allowedGroups = new HashSet<>();
+
+    private static final Set<String> BLOCKED_COMMANDS = Set.of(
+            "/gamemode", "/gm", "/minecraft:gamemode", "/essentials:gamemode",
+            "/essentials:gm", "/gmc", "/gms", "/gma", "/gmsp",
+            "/give", "/minecraft:give", "/essentials:give",
+            "/i", "/item", "/essentials:i", "/essentials:item"
+    );
 
     @Override
     public void onEnable() {
@@ -76,14 +85,11 @@ public final class AntiCreativePlugin extends JavaPlugin implements Listener, Co
                 .anyMatch(allowedGroups::contains);
     }
 
-    // 1. Блокируем саму смену режима на уровне ядра (срабатывает и на /gamemode, и на F3+F4, и на /op)
+    // 1. Блокируем смену режима на уровне ядра (/gamemode, F3+F4, сторонние плагины)
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onGameModeChange(PlayerGameModeChangeEvent event) {
         Player player = event.getPlayer();
-        GameMode newMode = event.getNewGameMode();
-
-        // Разрешаем возврат в выживание, чтобы не запереть игрока, если у него раньше был креатив
-        if (newMode == GameMode.SURVIVAL) {
+        if (event.getNewGameMode() == GameMode.SURVIVAL) {
             return;
         }
 
@@ -93,25 +99,56 @@ public final class AntiCreativePlugin extends JavaPlugin implements Listener, Co
         }
     }
 
-    // 2. Блокируем ввод команд смены режима заранее, чтобы не выдавало лишних сообщений
+    // 2. Блокируем взятие предметов из креативного инвентаря на уровне пакетов
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onCreativeInventory(InventoryCreativeEvent event) {
+        if (event.getWhoClicked() instanceof Player player && !isAllowed(player)) {
+            event.setCancelled(true);
+            player.setGameMode(GameMode.SURVIVAL);
+            sendMsg(player, "messages.no-permission");
+        }
+    }
+
+    // 3. Блокируем команды смены режима, /give и попытки обхода через /execute
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onCommandPreprocess(PlayerCommandPreprocessEvent event) {
         Player player = event.getPlayer();
         if (isAllowed(player)) return;
 
         String msg = event.getMessage().toLowerCase().trim();
-        String cmd = msg.split(" ")[0];
+        String[] parts = msg.split("\\s+");
+        String cmd = parts[0];
 
-        if (cmd.equals("/gamemode") || cmd.equals("/gm")
-                || cmd.equals("/minecraft:gamemode") || cmd.equals("/essentials:gamemode")
-                || cmd.equals("/essentials:gm") || cmd.equals("/gmc")
-                || cmd.equals("/gms") || cmd.equals("/gma") || cmd.equals("/gmsp")) {
+        if (BLOCKED_COMMANDS.contains(cmd)) {
+            event.setCancelled(true);
+            sendMsg(player, "messages.no-permission");
+            return;
+        }
+
+        // Защита от обхода через /execute ... run give / gamemode
+        if ((cmd.equals("/execute") || cmd.equals("/minecraft:execute"))
+                && (msg.contains(" give ") || msg.contains(" gamemode ") || msg.contains(" minecraft:give ") || msg.contains(" minecraft:gamemode "))) {
             event.setCancelled(true);
             sendMsg(player, "messages.no-permission");
         }
     }
 
-    // 3. Страховка при входе на сервер: если игрок зашёл в креативе/спектаторе без прав — сбрасываем в выживание
+    // 4. Скрываем команды /give и /gamemode из подсказок Tab-Complete для тех, кому запрещено
+    @EventHandler
+    public void onCommandSend(PlayerCommandSendEvent event) {
+        if (!isAllowed(event.getPlayer())) {
+            event.getCommands().removeIf(c -> {
+                String lower = c.toLowerCase();
+                return lower.equals("gamemode") || lower.equals("gm")
+                        || lower.equals("minecraft:gamemode") || lower.equals("essentials:gamemode")
+                        || lower.equals("gmc") || lower.equals("gms") || lower.equals("gma") || lower.equals("gmsp")
+                        || lower.equals("give") || lower.equals("minecraft:give") || lower.equals("essentials:give")
+                        || lower.equals("i") || lower.equals("item");
+            });
+        }
+    }
+
+    // 5. Страховка при входе на сервер
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
